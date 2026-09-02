@@ -141,11 +141,14 @@ module tb_uart_top;
             rx_recv(idx, frame_clks(cfg_parity_en[idx], 1) * 3, got, rdata, overrun, framing_err, parity_err);
         join
         check(got, $sformatf("[%s] round trip of 0x%0h: rx_valid_o never pulsed", cfg_name[idx], data));
-        if (!got) return;
-        check(rdata == data, $sformatf("[%s] round trip: got 0x%0h, expected 0x%0h", cfg_name[idx], rdata, data));
-        check(!overrun, $sformatf("[%s] round trip of 0x%0h: unexpected overrun", cfg_name[idx], data));
-        check(!framing_err, $sformatf("[%s] round trip of 0x%0h: unexpected framing error", cfg_name[idx], data));
-        check(!parity_err, $sformatf("[%s] round trip of 0x%0h: unexpected parity error", cfg_name[idx], data));
+        // Guard with "if (got)" rather than an early "return" -- unsupported
+        // from tasks on older Icarus Verilog.
+        if (got) begin
+            check(rdata == data, $sformatf("[%s] round trip: got 0x%0h, expected 0x%0h", cfg_name[idx], rdata, data));
+            check(!overrun, $sformatf("[%s] round trip of 0x%0h: unexpected overrun", cfg_name[idx], data));
+            check(!framing_err, $sformatf("[%s] round trip of 0x%0h: unexpected framing error", cfg_name[idx], data));
+            check(!parity_err, $sformatf("[%s] round trip of 0x%0h: unexpected parity error", cfg_name[idx], data));
+        end
     endtask
 
     // Streams `n` random bytes back-to-back (writer keeps feeding tx as soon

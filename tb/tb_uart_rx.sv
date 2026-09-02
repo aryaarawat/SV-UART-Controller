@@ -136,7 +136,7 @@ module tb_uart_rx;
             @(posedge clk_i);
             if (rx_valid_o[idx]) begin
                 got = 1'b1;
-                return;
+                break; // not "return" -- unsupported from tasks on older Icarus Verilog
             end
         end
     endtask
@@ -152,22 +152,25 @@ module tb_uart_rx;
 
         check(got, $sformatf("[%s] rx_valid_o never pulsed for 0x%0h (framing_err=%0b parity_err=%0b)",
                               cfg_name[idx], data, force_framing_err, force_parity_err));
-        if (!got) return;
 
-        check(rx_data_o[idx] == data,
-              $sformatf("[%s] decoded data 0x%0h != expected 0x%0h", cfg_name[idx], rx_data_o[idx], data));
-        check(framing_err_o[idx] == force_framing_err,
-              $sformatf("[%s] framing_err_o=%0b, expected %0b", cfg_name[idx], framing_err_o[idx], force_framing_err));
-        if (cfg_parity_en[idx]) begin
-            check(parity_err_o[idx] == force_parity_err,
-                  $sformatf("[%s] parity_err_o=%0b, expected %0b", cfg_name[idx], parity_err_o[idx], force_parity_err));
-        end else begin
-            check(parity_err_o[idx] == 1'b0, $sformatf("[%s] parity_err_o set with parity disabled", cfg_name[idx]));
+        // Guard the rest with "if (got)" rather than an early "return" --
+        // unsupported from tasks on older Icarus Verilog.
+        if (got) begin
+            check(rx_data_o[idx] == data,
+                  $sformatf("[%s] decoded data 0x%0h != expected 0x%0h", cfg_name[idx], rx_data_o[idx], data));
+            check(framing_err_o[idx] == force_framing_err,
+                  $sformatf("[%s] framing_err_o=%0b, expected %0b", cfg_name[idx], framing_err_o[idx], force_framing_err));
+            if (cfg_parity_en[idx]) begin
+                check(parity_err_o[idx] == force_parity_err,
+                      $sformatf("[%s] parity_err_o=%0b, expected %0b", cfg_name[idx], parity_err_o[idx], force_parity_err));
+            end else begin
+                check(parity_err_o[idx] == 1'b0, $sformatf("[%s] parity_err_o set with parity disabled", cfg_name[idx]));
+            end
+
+            // Settle back to idle before the next frame.
+            repeat (2 * BIT_PERIOD_CLKS) @(posedge clk_i);
+            check(!rx_busy_o[idx], $sformatf("[%s] rx_busy_o still high after frame + idle gap", cfg_name[idx]));
         end
-
-        // Settle back to idle before the next frame.
-        repeat (2 * BIT_PERIOD_CLKS) @(posedge clk_i);
-        check(!rx_busy_o[idx], $sformatf("[%s] rx_busy_o still high after frame + idle gap", cfg_name[idx]));
     endtask
 
     initial begin
