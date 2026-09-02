@@ -81,11 +81,20 @@ module tb_uart_tx;
         .tx_o(tx_o[3]), .tx_busy_o(tx_busy_o[3])
     );
 
-    bit  cfg_parity_en  [NUM_CFG] = '{1'b0, 1'b1, 1'b1, 1'b0};
-    bit  cfg_parity_odd [NUM_CFG] = '{1'b0, 1'b0, 1'b1, 1'b0};
-    int  cfg_stop_bits  [NUM_CFG] = '{1, 1, 2, 1};
-    string cfg_name [NUM_CFG] = '{"no-parity/1-stop", "even-parity/1-stop",
-                                   "odd-parity/1-stop", "no-parity/2-stop"};
+    // Populated via an initial block (rather than an aggregate '{...}
+    // literal assigned to the whole array) for portability -- older Icarus
+    // Verilog releases (e.g. the 12.0 apt package on Ubuntu) don't support
+    // whole-array aggregate assignment.
+    bit    cfg_parity_en  [NUM_CFG];
+    bit    cfg_parity_odd [NUM_CFG];
+    int    cfg_stop_bits  [NUM_CFG];
+    string cfg_name       [NUM_CFG];
+    initial begin
+        cfg_parity_en[0]  = 1'b0; cfg_parity_odd[0] = 1'b0; cfg_stop_bits[0] = 1; cfg_name[0] = "no-parity/1-stop";
+        cfg_parity_en[1]  = 1'b1; cfg_parity_odd[1] = 1'b0; cfg_stop_bits[1] = 1; cfg_name[1] = "even-parity/1-stop";
+        cfg_parity_en[2]  = 1'b1; cfg_parity_odd[2] = 1'b1; cfg_stop_bits[2] = 1; cfg_name[2] = "odd-parity/1-stop";
+        cfg_parity_en[3]  = 1'b0; cfg_parity_odd[3] = 1'b0; cfg_stop_bits[3] = 2; cfg_name[3] = "no-parity/2-stop";
+    end
 
     // Send one byte into cfg `idx` and decode the resulting serial frame,
     // checking it against expectations for that configuration.
@@ -170,7 +179,9 @@ module tb_uart_tx;
         // Directed values covering edge patterns, plus a couple of random bytes,
         // sent through every configuration.
         begin
-            logic [7:0] vectors [] = '{8'h00, 8'hFF, 8'hA5, 8'h01, 8'h80, 8'h55};
+            logic [7:0] vectors [6];
+            vectors[0] = 8'h00; vectors[1] = 8'hFF; vectors[2] = 8'hA5;
+            vectors[3] = 8'h01; vectors[4] = 8'h80; vectors[5] = 8'h55;
             for (int c = 0; c < NUM_CFG; c++) begin
                 foreach (vectors[v]) send_and_check(c, vectors[v]);
                 repeat (3) send_and_check(c, $urandom_range(0, 255));

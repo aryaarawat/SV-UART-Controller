@@ -76,8 +76,16 @@ module tb_uart_top;
         .rx_framing_err_o(rx_framing_err_o[1]), .rx_parity_err_o(rx_parity_err_o[1])
     );
 
-    bit    cfg_parity_en [NUM_CFG] = '{1'b0, 1'b1};
-    string cfg_name      [NUM_CFG] = '{"no-parity", "even-parity"};
+    // Populated via an initial block (rather than an aggregate '{...}
+    // literal assigned to the whole array) for portability -- older Icarus
+    // Verilog releases (e.g. the 12.0 apt package on Ubuntu) don't support
+    // whole-array aggregate assignment.
+    bit    cfg_parity_en [NUM_CFG];
+    string cfg_name      [NUM_CFG];
+    initial begin
+        cfg_parity_en[0] = 1'b0; cfg_name[0] = "no-parity";
+        cfg_parity_en[1] = 1'b1; cfg_name[1] = "even-parity";
+    end
 
     int errors = 0;
     task automatic check(input bit cond, input string msg);
