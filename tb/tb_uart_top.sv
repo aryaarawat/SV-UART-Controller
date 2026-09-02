@@ -114,8 +114,10 @@ module tb_uart_top;
     task automatic rx_recv(input int idx, input int max_cycles,
                             output bit got, output logic [DATA_BITS-1:0] data,
                             output bit overrun, output bit framing_err, output bit parity_err);
+        // Loop condition carries the exit, rather than "break" -- unsupported
+        // on older Icarus Verilog.
         got = 1'b0;
-        for (int c = 0; c < max_cycles; c++) begin
+        for (int c = 0; c < max_cycles && !got; c++) begin
             @(posedge clk_i);
             if (rx_valid_o[idx]) begin
                 got         = 1'b1;
@@ -123,7 +125,6 @@ module tb_uart_top;
                 overrun     = rx_overrun_o[idx];
                 framing_err = rx_framing_err_o[idx];
                 parity_err  = rx_parity_err_o[idx];
-                break;
             end
         end
         if (got) begin
@@ -178,18 +179,20 @@ module tb_uart_top;
                     if (!got) begin
                         mismatches++;
                         $display("[FAIL] %0t: [%s] streaming: byte #%0d never arrived", $time, cfg_name[idx], i);
-                        continue;
-                    end
-                    exp_b = expected.pop_front();
-                    if (rd !== exp_b) begin
-                        mismatches++;
-                        $display("[FAIL] %0t: [%s] streaming: byte #%0d = 0x%0h, expected 0x%0h",
-                                  $time, cfg_name[idx], i, rd, exp_b);
-                    end
-                    if (ov || fe || pe) begin
-                        mismatches++;
-                        $display("[FAIL] %0t: [%s] streaming: byte #%0d unexpected error flags (ov=%0b fe=%0b pe=%0b)",
-                                  $time, cfg_name[idx], i, ov, fe, pe);
+                    end else begin
+                        // "else" rather than an early "continue" -- unsupported
+                        // on older Icarus Verilog.
+                        exp_b = expected.pop_front();
+                        if (rd !== exp_b) begin
+                            mismatches++;
+                            $display("[FAIL] %0t: [%s] streaming: byte #%0d = 0x%0h, expected 0x%0h",
+                                      $time, cfg_name[idx], i, rd, exp_b);
+                        end
+                        if (ov || fe || pe) begin
+                            mismatches++;
+                            $display("[FAIL] %0t: [%s] streaming: byte #%0d unexpected error flags (ov=%0b fe=%0b pe=%0b)",
+                                      $time, cfg_name[idx], i, ov, fe, pe);
+                        end
                     end
                 end
             end

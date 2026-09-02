@@ -131,13 +131,12 @@ module tb_uart_rx;
     endtask
 
     task automatic wait_for_valid(input int idx, input int max_cycles, output bit got);
+        // Loop condition carries the exit, rather than "break" -- unsupported
+        // on older Icarus Verilog.
         got = 1'b0;
-        for (int c = 0; c < max_cycles; c++) begin
+        for (int c = 0; c < max_cycles && !got; c++) begin
             @(posedge clk_i);
-            if (rx_valid_o[idx]) begin
-                got = 1'b1;
-                break; // not "return" -- unsupported from tasks on older Icarus Verilog
-            end
+            if (rx_valid_o[idx]) got = 1'b1;
         end
     endtask
 
