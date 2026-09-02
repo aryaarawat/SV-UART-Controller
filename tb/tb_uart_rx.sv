@@ -194,13 +194,16 @@ module tb_uart_rx;
             end
         end
 
-        // Framing error injection (stop bit(s) forced low).
-        send_and_check(0, 8'h3C, .force_framing_err(1'b1));
-        send_and_check(2, 8'h3C, .force_framing_err(1'b1)); // 2-stop-bit config
+        // Framing error injection (stop bit(s) forced low). Positional args
+        // throughout (rather than named .force_framing_err(...) connections)
+        // for portability -- older Icarus Verilog releases don't support
+        // named task-argument connections combined with default values.
+        send_and_check(0, 8'h3C, 1'b1, 1'b0);
+        send_and_check(2, 8'h3C, 1'b1, 1'b0); // 2-stop-bit config
 
         // Parity error injection (only meaningful on the parity-enabled cfg).
-        send_and_check(1, 8'h6D, .force_parity_err(1'b1));
-        send_and_check(1, 8'h6D, .force_parity_err(1'b0)); // and confirm clean frame still passes after an error
+        send_and_check(1, 8'h6D, 1'b0, 1'b1);
+        send_and_check(1, 8'h6D, 1'b0, 1'b0); // and confirm clean frame still passes after an error
 
         // Start-bit glitch rejection: a low pulse much shorter than half a
         // bit period must NOT be mistaken for a start bit.
