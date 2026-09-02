@@ -77,10 +77,19 @@ module tb_uart_rx;
         .framing_err_o(framing_err_o[2]), .parity_err_o(parity_err_o[2])
     );
 
-    bit    cfg_parity_en  [NUM_CFG] = '{1'b0, 1'b1, 1'b0};
-    bit    cfg_parity_odd [NUM_CFG] = '{1'b0, 1'b0, 1'b0};
-    int    cfg_stop_bits  [NUM_CFG] = '{1, 1, 2};
-    string cfg_name [NUM_CFG] = '{"no-parity/1-stop", "even-parity/1-stop", "no-parity/2-stop"};
+    // Populated via an initial block (rather than an aggregate '{...}
+    // literal assigned to the whole array) for portability -- older Icarus
+    // Verilog releases (e.g. the 12.0 apt package on Ubuntu) don't support
+    // whole-array aggregate assignment.
+    bit    cfg_parity_en  [NUM_CFG];
+    bit    cfg_parity_odd [NUM_CFG];
+    int    cfg_stop_bits  [NUM_CFG];
+    string cfg_name       [NUM_CFG];
+    initial begin
+        cfg_parity_en[0] = 1'b0; cfg_parity_odd[0] = 1'b0; cfg_stop_bits[0] = 1; cfg_name[0] = "no-parity/1-stop";
+        cfg_parity_en[1] = 1'b1; cfg_parity_odd[1] = 1'b0; cfg_stop_bits[1] = 1; cfg_name[1] = "even-parity/1-stop";
+        cfg_parity_en[2] = 1'b0; cfg_parity_odd[2] = 1'b0; cfg_stop_bits[2] = 2; cfg_name[2] = "no-parity/2-stop";
+    end
 
     // Generous upper bound (in clk cycles) on how long a full frame can take
     // to arrive: 1 leading idle bit + start + data + parity + stop bits,
@@ -122,13 +131,12 @@ module tb_uart_rx;
     endtask
 
     task automatic wait_for_valid(input int idx, input int max_cycles, output bit got);
+        // Loop condition carries the exit, rather than "break" -- unsupported
+        // on older Icarus Verilog.
         got = 1'b0;
-        for (int c = 0; c < max_cycles; c++) begin
+        for (int c = 0; c < max_cycles && !got; c++) begin
             @(posedge clk_i);
-            if (rx_valid_o[idx]) begin
-                got = 1'b1;
-                return;
-            end
+            if (rx_valid_o[idx]) got = 1'b1;
         end
     endtask
 
@@ -143,22 +151,25 @@ module tb_uart_rx;
 
         check(got, $sformatf("[%s] rx_valid_o never pulsed for 0x%0h (framing_err=%0b parity_err=%0b)",
                               cfg_name[idx], data, force_framing_err, force_parity_err));
-        if (!got) return;
 
-        check(rx_data_o[idx] == data,
-              $sformatf("[%s] decoded data 0x%0h != expected 0x%0h", cfg_name[idx], rx_data_o[idx], data));
-        check(framing_err_o[idx] == force_framing_err,
-              $sformatf("[%s] framing_err_o=%0b, expected %0b", cfg_name[idx], framing_err_o[idx], force_framing_err));
-        if (cfg_parity_en[idx]) begin
-            check(parity_err_o[idx] == force_parity_err,
-                  $sformatf("[%s] parity_err_o=%0b, expected %0b", cfg_name[idx], parity_err_o[idx], force_parity_err));
-        end else begin
-            check(parity_err_o[idx] == 1'b0, $sformatf("[%s] parity_err_o set with parity disabled", cfg_name[idx]));
+        // Guard the rest with "if (got)" rather than an early "return" --
+        // unsupported from tasks on older Icarus Verilog.
+        if (got) begin
+            check(rx_data_o[idx] == data,
+                  $sformatf("[%s] decoded data 0x%0h != expected 0x%0h", cfg_name[idx], rx_data_o[idx], data));
+            check(framing_err_o[idx] == force_framing_err,
+                  $sformatf("[%s] framing_err_o=%0b, expected %0b", cfg_name[idx], framing_err_o[idx], force_framing_err));
+            if (cfg_parity_en[idx]) begin
+                check(parity_err_o[idx] == force_parity_err,
+                      $sformatf("[%s] parity_err_o=%0b, expected %0b", cfg_name[idx], parity_err_o[idx], force_parity_err));
+            end else begin
+                check(parity_err_o[idx] == 1'b0, $sformatf("[%s] parity_err_o set with parity disabled", cfg_name[idx]));
+            end
+
+            // Settle back to idle before the next frame.
+            repeat (2 * BIT_PERIOD_CLKS) @(posedge clk_i);
+            check(!rx_busy_o[idx], $sformatf("[%s] rx_busy_o still high after frame + idle gap", cfg_name[idx]));
         end
-
-        // Settle back to idle before the next frame.
-        repeat (2 * BIT_PERIOD_CLKS) @(posedge clk_i);
-        check(!rx_busy_o[idx], $sformatf("[%s] rx_busy_o still high after frame + idle gap", cfg_name[idx]));
     endtask
 
     initial begin
@@ -176,20 +187,25 @@ module tb_uart_rx;
 
         // Directed + random clean frames on every configuration.
         begin
-            logic [7:0] vectors [] = '{8'h00, 8'hFF, 8'hA5, 8'h01, 8'h80, 8'h55};
+            logic [7:0] vectors [6];
+            vectors[0] = 8'h00; vectors[1] = 8'hFF; vectors[2] = 8'hA5;
+            vectors[3] = 8'h01; vectors[4] = 8'h80; vectors[5] = 8'h55;
             for (int c = 0; c < NUM_CFG; c++) begin
                 foreach (vectors[v]) send_and_check(c, vectors[v]);
                 repeat (3) send_and_check(c, $urandom_range(0, 255));
             end
         end
 
-        // Framing error injection (stop bit(s) forced low).
-        send_and_check(0, 8'h3C, .force_framing_err(1'b1));
-        send_and_check(2, 8'h3C, .force_framing_err(1'b1)); // 2-stop-bit config
+        // Framing error injection (stop bit(s) forced low). Positional args
+        // throughout (rather than named .force_framing_err(...) connections)
+        // for portability -- older Icarus Verilog releases don't support
+        // named task-argument connections combined with default values.
+        send_and_check(0, 8'h3C, 1'b1, 1'b0);
+        send_and_check(2, 8'h3C, 1'b1, 1'b0); // 2-stop-bit config
 
         // Parity error injection (only meaningful on the parity-enabled cfg).
-        send_and_check(1, 8'h6D, .force_parity_err(1'b1));
-        send_and_check(1, 8'h6D, .force_parity_err(1'b0)); // and confirm clean frame still passes after an error
+        send_and_check(1, 8'h6D, 1'b0, 1'b1);
+        send_and_check(1, 8'h6D, 1'b0, 1'b0); // and confirm clean frame still passes after an error
 
         // Start-bit glitch rejection: a low pulse much shorter than half a
         // bit period must NOT be mistaken for a start bit.

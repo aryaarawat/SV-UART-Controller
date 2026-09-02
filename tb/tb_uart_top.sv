@@ -76,8 +76,16 @@ module tb_uart_top;
         .rx_framing_err_o(rx_framing_err_o[1]), .rx_parity_err_o(rx_parity_err_o[1])
     );
 
-    bit    cfg_parity_en [NUM_CFG] = '{1'b0, 1'b1};
-    string cfg_name      [NUM_CFG] = '{"no-parity", "even-parity"};
+    // Populated via an initial block (rather than an aggregate '{...}
+    // literal assigned to the whole array) for portability -- older Icarus
+    // Verilog releases (e.g. the 12.0 apt package on Ubuntu) don't support
+    // whole-array aggregate assignment.
+    bit    cfg_parity_en [NUM_CFG];
+    string cfg_name      [NUM_CFG];
+    initial begin
+        cfg_parity_en[0] = 1'b0; cfg_name[0] = "no-parity";
+        cfg_parity_en[1] = 1'b1; cfg_name[1] = "even-parity";
+    end
 
     int errors = 0;
     task automatic check(input bit cond, input string msg);
@@ -106,8 +114,10 @@ module tb_uart_top;
     task automatic rx_recv(input int idx, input int max_cycles,
                             output bit got, output logic [DATA_BITS-1:0] data,
                             output bit overrun, output bit framing_err, output bit parity_err);
+        // Loop condition carries the exit, rather than "break" -- unsupported
+        // on older Icarus Verilog.
         got = 1'b0;
-        for (int c = 0; c < max_cycles; c++) begin
+        for (int c = 0; c < max_cycles && !got; c++) begin
             @(posedge clk_i);
             if (rx_valid_o[idx]) begin
                 got         = 1'b1;
@@ -115,7 +125,6 @@ module tb_uart_top;
                 overrun     = rx_overrun_o[idx];
                 framing_err = rx_framing_err_o[idx];
                 parity_err  = rx_parity_err_o[idx];
-                break;
             end
         end
         if (got) begin
@@ -133,11 +142,14 @@ module tb_uart_top;
             rx_recv(idx, frame_clks(cfg_parity_en[idx], 1) * 3, got, rdata, overrun, framing_err, parity_err);
         join
         check(got, $sformatf("[%s] round trip of 0x%0h: rx_valid_o never pulsed", cfg_name[idx], data));
-        if (!got) return;
-        check(rdata == data, $sformatf("[%s] round trip: got 0x%0h, expected 0x%0h", cfg_name[idx], rdata, data));
-        check(!overrun, $sformatf("[%s] round trip of 0x%0h: unexpected overrun", cfg_name[idx], data));
-        check(!framing_err, $sformatf("[%s] round trip of 0x%0h: unexpected framing error", cfg_name[idx], data));
-        check(!parity_err, $sformatf("[%s] round trip of 0x%0h: unexpected parity error", cfg_name[idx], data));
+        // Guard with "if (got)" rather than an early "return" -- unsupported
+        // from tasks on older Icarus Verilog.
+        if (got) begin
+            check(rdata == data, $sformatf("[%s] round trip: got 0x%0h, expected 0x%0h", cfg_name[idx], rdata, data));
+            check(!overrun, $sformatf("[%s] round trip of 0x%0h: unexpected overrun", cfg_name[idx], data));
+            check(!framing_err, $sformatf("[%s] round trip of 0x%0h: unexpected framing error", cfg_name[idx], data));
+            check(!parity_err, $sformatf("[%s] round trip of 0x%0h: unexpected parity error", cfg_name[idx], data));
+        end
     endtask
 
     // Streams `n` random bytes back-to-back (writer keeps feeding tx as soon
@@ -167,18 +179,20 @@ module tb_uart_top;
                     if (!got) begin
                         mismatches++;
                         $display("[FAIL] %0t: [%s] streaming: byte #%0d never arrived", $time, cfg_name[idx], i);
-                        continue;
-                    end
-                    exp_b = expected.pop_front();
-                    if (rd !== exp_b) begin
-                        mismatches++;
-                        $display("[FAIL] %0t: [%s] streaming: byte #%0d = 0x%0h, expected 0x%0h",
-                                  $time, cfg_name[idx], i, rd, exp_b);
-                    end
-                    if (ov || fe || pe) begin
-                        mismatches++;
-                        $display("[FAIL] %0t: [%s] streaming: byte #%0d unexpected error flags (ov=%0b fe=%0b pe=%0b)",
-                                  $time, cfg_name[idx], i, ov, fe, pe);
+                    end else begin
+                        // "else" rather than an early "continue" -- unsupported
+                        // on older Icarus Verilog.
+                        exp_b = expected.pop_front();
+                        if (rd !== exp_b) begin
+                            mismatches++;
+                            $display("[FAIL] %0t: [%s] streaming: byte #%0d = 0x%0h, expected 0x%0h",
+                                      $time, cfg_name[idx], i, rd, exp_b);
+                        end
+                        if (ov || fe || pe) begin
+                            mismatches++;
+                            $display("[FAIL] %0t: [%s] streaming: byte #%0d unexpected error flags (ov=%0b fe=%0b pe=%0b)",
+                                      $time, cfg_name[idx], i, ov, fe, pe);
+                        end
                     end
                 end
             end
