@@ -17,3 +17,21 @@ jobs:
 
       - name: Run testbenches
         run: make -C tb
+
+  cocotb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Icarus Verilog
+        run: sudo apt-get update && sudo apt-get install -y iverilog
+
+      - name: Install cocotb
+        run: pip install -r cocotb/requirements.txt
+
+      - name: Run cocotb testbench
+        run: make -C cocotb

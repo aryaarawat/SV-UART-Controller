@@ -42,3 +42,23 @@ make            # run every testbench
 make tb_uart_rx # run just one
 make clean      # remove build/ output
 ```
+
+## cocotb
+
+A second, independent testbench for `uart_top` lives in `cocotb/`, written in
+Python against [cocotb](https://www.cocotb.org/) instead of SystemVerilog.
+It drives `uart_top` through a thin loopback wrapper
+(`cocotb/uart_top_loopback.sv`) and covers the same scenarios as
+`tb/tb_uart_top.sv`: reset state, single-byte round trips, back-to-back
+streaming with a scoreboard, and RX overrun handling.
+
+### Running
+
+Requires Icarus Verilog (as above) plus Python 3.9+.
+
+```sh
+cd cocotb
+python3 -m venv .venv && source .venv/bin/activate  # optional but recommended
+pip install -r requirements.txt
+make
+```
