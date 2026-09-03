@@ -11,13 +11,13 @@
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 
-RTL_DIR := $(PWD)/../rtl
+RTL_DIR := $(CURDIR)/../rtl
 
 VERILOG_SOURCES += $(RTL_DIR)/baud_rate_gen.sv
 VERILOG_SOURCES += $(RTL_DIR)/uart_tx.sv
 VERILOG_SOURCES += $(RTL_DIR)/uart_rx.sv
 VERILOG_SOURCES += $(RTL_DIR)/uart_top.sv
-VERILOG_SOURCES += $(PWD)/uart_top_loopback.sv
+VERILOG_SOURCES += $(CURDIR)/uart_top_loopback.sv
 
 TOPLEVEL = uart_top_loopback
 MODULE = test_uart_top
