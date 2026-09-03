@@ -1,0 +1,13 @@
+# SV testbench build output (tb/Makefile)
+tb/build/
+
+# cocotb build output (cocotb/Makefile)
+cocotb/sim_build/
+cocotb/results.xml
+cocotb/__pycache__/
+cocotb/*.vcd
+
+# Python
+.venv/
+__pycache__/
+*.pyc
