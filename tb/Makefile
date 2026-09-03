@@ -11,9 +11,9 @@
 RTL_DIR := ../rtl
 BUILD_DIR := build
 
-RTL_SRCS := $(RTL_DIR)/baud_rate_gen.sv $(RTL_DIR)/uart_tx.sv $(RTL_DIR)/uart_rx.sv $(RTL_DIR)/uart_top.sv
+RTL_SRCS := $(RTL_DIR)/fifo.sv $(RTL_DIR)/baud_rate_gen.sv $(RTL_DIR)/uart_tx.sv $(RTL_DIR)/uart_rx.sv $(RTL_DIR)/uart_top.sv
 
-TESTBENCHES := tb_baud_rate_gen tb_uart_tx tb_uart_rx tb_uart_top
+TESTBENCHES := tb_fifo tb_baud_rate_gen tb_uart_tx tb_uart_rx tb_uart_top
 
 IVFLAGS := -g2012
 
