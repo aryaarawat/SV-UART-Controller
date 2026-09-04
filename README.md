@@ -72,6 +72,7 @@ block-beta
 | `rtl/uart_rx.sv` | Receive FSM: oversampling synchronizer + serial-to-parallel deframing |
 | `rtl/fifo.sv` | Generic synchronous FIFO (circular buffer + fill-level counter) |
 | `rtl/uart_top.sv` | Integrates the above behind TX/RX FIFOs and a CPU-friendly register interface |
+| `rtl/uart_apb.sv` | AMBA APB4 slave wrapper around `uart_top` -- a 3-register memory-mapped interface |
 
 Parameters (set on `uart_top`, propagated down): `CLK_FREQ_HZ`, `BAUD_RATE`,
 `DATA_BITS`, `PARITY_EN`, `PARITY_ODD`, `STOP_BITS`, `OVERSAMPLE`,
@@ -85,6 +86,38 @@ along with its own `rx_framing_err_o`/`rx_parity_err_o`. `rx_overrun_o` is
 sticky and flags a byte that arrived while the RX FIFO was completely full
 (and was therefore dropped).
 
+### APB wrapper
+
+`uart_apb` puts `uart_top` behind an AMBA APB4 slave port (`psel_i`,
+`penable_i`, `pwrite_i`, `paddr_i`, `pwdata_i`, `prdata_o`, `pready_o`,
+`pslverr_o`) -- `paddr_i` is just the offset within this peripheral's own
+space; a system-level address decoder is assumed to produce `psel_i` from
+the upper address bits. It never inserts wait states (`pready_o` is tied
+high), and reports `pslverr_o` -- the transfer still completes; APB has no
+way to stall or retry a response -- for a handful of real mistakes a host
+could make: writing `TXDATA` while the TX FIFO is full (the byte is
+dropped, same as it would be through the raw `uart_top` port), reading
+`RXDATA` while the RX FIFO is empty, writing a read-only register, or
+accessing an unmapped offset.
+
+| Offset | Register | Access | Description |
+| --- | --- | --- | --- |
+| `0x0` | `TXDATA` | W | `PWDATA[DATA_BITS-1:0]`: write a byte into the TX FIFO |
+| `0x4` | `RXDATA` | R | `PRDATA[DATA_BITS-1:0]`: pop and return the oldest queued RX byte |
+| `0x8` | `STATUS` | R | packed status bits, see below |
+
+`STATUS` bit layout:
+
+| Bit | Signal | Bit | Signal |
+| --- | --- | --- | --- |
+| 0 | `tx_ready_o` | 5 | `rx_full_o` |
+| 1 | `tx_full_o` | 6 | `rx_busy_o` |
+| 2 | `tx_busy_o` | 7 | `rx_overrun_o` |
+| 3 | `rx_valid_o` | 8 | `rx_framing_err_o` |
+| 4 | `rx_empty_o` | 9 | `rx_parity_err_o` |
+
+`[31:10]` reserved, read as 0.
+
 ## Testbenches
 
 Self-checking SystemVerilog testbenches live in `tb/`, one per RTL module
@@ -97,6 +130,7 @@ plus a full-stack loopback integration test:
 | `tb/tb_uart_tx.sv` | Serial framing across parity/stop-bit configurations, back-to-back sends |
 | `tb/tb_uart_rx.sv` | Deframing, framing/parity error injection, start-bit glitch rejection |
 | `tb/tb_uart_top.sv` | Self-loopback round trips, streaming, TX FIFO fill, RX FIFO fill + overrun |
+| `tb/tb_uart_apb.sv` | Drives the real APB4 SETUP/ACCESS handshake; register map, round trip, all `pslverr_o` cases |
 
 Each testbench prints `PASS`/`FAIL` and exits non-zero on failure (via
 `$fatal`), so they're CI-friendly as-is.
@@ -138,10 +172,10 @@ make
 `synth/synth_check.ys` runs the design through Yosys's generic `synth` flow
 (no target cell library) as a sanity check -- proves it's synthesizable at
 all, with no inferred latches and no dangling-wire/multiple-driver/
-combinational-loop problems (`check -assert`). It's not a target-specific
-(FPGA/ASIC) flow, and it's a supplement to simulation, not a replacement --
-this only proves the design synthesizes cleanly, not that it behaves
-correctly.
+combinational-loop problems (`check -assert`). Checked as two separate
+tops, `uart_top` and `uart_apb`. It's not a target-specific (FPGA/ASIC)
+flow, and it's a supplement to simulation, not a replacement -- this only
+proves the design synthesizes cleanly, not that it behaves correctly.
 
 ### Running
 

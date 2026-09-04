@@ -7,6 +7,12 @@
 #               multiple-driver/dangling-wire problems, no combinational-loop
 #               issues. Run via `make` in this directory (see Makefile) or
 #               directly: `yosys -s synth/synth_check.ys` from the repo root.
+#
+#               Checked as two separate designs/tops -- uart_top (usable
+#               standalone) and uart_apb (the APB4 wrapper around it, which
+#               would otherwise only ever be checked transitively) -- rather
+#               than one multi-top design, so each gets its own clean `synth`
+#               run and `check -assert` pass.
 # -----------------------------------------------------------------------------
 
 read_verilog -sv ../rtl/fifo.sv ../rtl/baud_rate_gen.sv ../rtl/uart_tx.sv ../rtl/uart_rx.sv ../rtl/uart_top.sv
@@ -25,4 +31,11 @@ select -assert-none t:$dlatch t:$dlatchsr t:$_DLATCH_* t:$_DLATCHSR_*
 # finding rather than just printing a warning.
 check -assert
 
+stat
+
+design -reset
+read_verilog -sv ../rtl/fifo.sv ../rtl/baud_rate_gen.sv ../rtl/uart_tx.sv ../rtl/uart_rx.sv ../rtl/uart_top.sv ../rtl/uart_apb.sv
+synth -top uart_apb
+select -assert-none t:$dlatch t:$dlatchsr t:$_DLATCH_* t:$_DLATCHSR_*
+check -assert
 stat
