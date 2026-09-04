@@ -1,0 +1,28 @@
+# -----------------------------------------------------------------------------
+# File        : synth_check.ys
+# Description : Yosys synthesis sanity check for the UART controller. Not a
+#               target-specific (FPGA/ASIC) synthesis flow -- just proves the
+#               design is synthesizable at all, with generic `synth`, and
+#               that it does so cleanly: no inferred latches, no
+#               multiple-driver/dangling-wire problems, no combinational-loop
+#               issues. Run via `make` in this directory (see Makefile) or
+#               directly: `yosys -s synth/synth_check.ys` from the repo root.
+# -----------------------------------------------------------------------------
+
+read_verilog -sv ../rtl/fifo.sv ../rtl/baud_rate_gen.sv ../rtl/uart_tx.sv ../rtl/uart_rx.sv ../rtl/uart_top.sv
+
+# Generic synthesis (no target cell library) -- elaborates, maps memories,
+# runs `proc`/`opt`/`techmap`/ABC logic optimization down to generic gates.
+synth -top uart_top
+
+# Fail loudly (nonzero exit) if synthesis inferred a latch anywhere -- in a
+# fully synchronous design like this one, that always means an incomplete
+# case/if in some combinational-looking always block, i.e. a real bug.
+select -assert-none t:$dlatch t:$dlatchsr t:$_DLATCH_* t:$_DLATCHSR_*
+
+# `check` again post-synthesis: multiple drivers, wires used but never
+# driven, combinational loops, etc. -assert makes it exit nonzero on any
+# finding rather than just printing a warning.
+check -assert
+
+stat

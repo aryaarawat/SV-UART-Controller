@@ -48,15 +48,22 @@ module baud_rate_gen #(
     localparam int unsigned DIVISOR_X16 =
         (CLK_FREQ_HZ + (BAUD_RATE * OVERSAMPLE) / 2) / (BAUD_RATE * OVERSAMPLE);
 
+    localparam int CLK_CNT_W = (DIVISOR_X16 <= 1) ? 1 : $clog2(DIVISOR_X16);
+    localparam int OS_CNT_W  = (OVERSAMPLE  <= 1) ? 1 : $clog2(OVERSAMPLE);
+
+    // synthesis translate_off
+    // ACTUAL_BAUD_X16_HZ/ACTUAL_BAUD/BAUD_ERROR_PCT (and BAUD_ERROR_PCT's
+    // `real` type) are pure simulation-time diagnostics with no bearing on
+    // the synthesized hardware, so they -- like the initial block that uses
+    // them -- live entirely inside this pragma. Some synthesis frontends
+    // (e.g. Yosys) don't parse the `real` type at all, even in dead code,
+    // so keeping this outside the pragma would break synthesis for no
+    // synthesizable benefit.
     localparam int unsigned ACTUAL_BAUD_X16_HZ = CLK_FREQ_HZ / DIVISOR_X16;
     localparam real ACTUAL_BAUD = real'(ACTUAL_BAUD_X16_HZ) / real'(OVERSAMPLE);
     localparam real BAUD_ERROR_PCT =
         100.0 * (ACTUAL_BAUD - real'(BAUD_RATE)) / real'(BAUD_RATE);
 
-    localparam int CLK_CNT_W = (DIVISOR_X16 <= 1) ? 1 : $clog2(DIVISOR_X16);
-    localparam int OS_CNT_W  = (OVERSAMPLE  <= 1) ? 1 : $clog2(OVERSAMPLE);
-
-    // synthesis translate_off
     initial begin
         if (DIVISOR_X16 < 1) begin
             $fatal(1, "baud_rate_gen: CLK_FREQ_HZ=%0d too low for BAUD_RATE=%0d x OVERSAMPLE=%0d",

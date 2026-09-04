@@ -73,3 +73,22 @@ python3 -m venv .venv && source .venv/bin/activate  # optional but recommended
 pip install -r requirements.txt
 make
 ```
+
+## Synthesis check
+
+`synth/synth_check.ys` runs the design through Yosys's generic `synth` flow
+(no target cell library) as a sanity check -- proves it's synthesizable at
+all, with no inferred latches and no dangling-wire/multiple-driver/
+combinational-loop problems (`check -assert`). It's not a target-specific
+(FPGA/ASIC) flow, and it's a supplement to simulation, not a replacement --
+this only proves the design synthesizes cleanly, not that it behaves
+correctly.
+
+### Running
+
+Requires [Yosys](https://yosyshq.net/yosys/).
+
+```sh
+cd synth
+make
+```
