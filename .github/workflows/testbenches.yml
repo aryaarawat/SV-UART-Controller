@@ -35,3 +35,14 @@ jobs:
 
       - name: Run cocotb testbench
         run: make -C cocotb
+
+  synth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Yosys
+        run: sudo apt-get update && sudo apt-get install -y yosys
+
+      - name: Run synthesis sanity check
+        run: make -C synth
