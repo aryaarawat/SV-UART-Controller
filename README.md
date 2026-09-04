@@ -4,6 +4,65 @@ A configurable UART controller in SystemVerilog: baud-rate generator, TX and
 RX FSMs, and a register-style top-level integration suitable for driving
 from a CPU/APB/AXI-lite adapter.
 
+## Architecture
+
+```mermaid
+---
+config:
+  theme: forest
+---
+block-beta
+  columns 7
+
+  clk["clk_i"] space rst["rst_ni"] space en["en_i"] space space
+  space baud["baud_rate_gen"] space space space status["TX/RX status"] space
+  space tick16["tick_x16_o"] space tick1["tick_x1_o"] space space space
+
+  block:uart_top:5
+    columns 5
+
+    cpu["CPU / host\ninterface"] space txfifo["TX FIFO"] space tx["uart_tx\nSerializer"]
+    space space space space space
+    rx["uart_rx\nSync + sampler"] space rxfifo["RX FIFO"] space space
+  end
+
+  txline["tx_o"] space wire["UART wire /\nloopback"] space rxin["rx_i"] space space
+
+  clk --> baud
+  rst --> baud
+  en --> baud
+  baud --> tick16
+  baud --> tick1
+
+  cpu -- "tx_wdata_i, tx_wr_en_i" --> txfifo
+  txfifo --> tx
+  tick1 --> tx
+  tx --> txline
+  txline --> wire
+  wire --> rxin
+  rxin --> rx
+  tick16 --> rx
+  rx --> rxfifo
+  cpu -- "rx_rd_en_i" --> rxfifo
+  tx -- "tx_ready_o, tx_full_o" --> status
+
+  classDef clock fill:#eef2ff,stroke:#818cf8,color:#1e1b4b
+  classDef timing fill:#ecfeff,stroke:#22d3ee,color:#164e63
+  classDef uart fill:#f0fdfa,stroke:#2dd4bf,color:#134e4a
+  classDef fifo fill:#f7fee7,stroke:#a3e635,color:#365314
+  classDef interface fill:#fff7ed,stroke:#fb923c,color:#7c2d12
+  classDef transport fill:#ecfeff,stroke:#22d3ee,color:#164e63
+  classDef status fill:#fdf4ff,stroke:#e879f9,color:#701a75
+
+  class clk,rst,en clock
+  class baud,tick16,tick1 timing
+  class tx,rx uart
+  class txfifo,rxfifo fifo
+  class cpu interface
+  class txline,wire,rxin transport
+  class status status
+```
+
 ## RTL
 
 | File | Description |
