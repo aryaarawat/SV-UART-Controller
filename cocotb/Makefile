@@ -13,6 +13,7 @@ TOPLEVEL_LANG ?= verilog
 
 RTL_DIR := $(CURDIR)/../rtl
 
+VERILOG_SOURCES += $(RTL_DIR)/fifo.sv
 VERILOG_SOURCES += $(RTL_DIR)/baud_rate_gen.sv
 VERILOG_SOURCES += $(RTL_DIR)/uart_tx.sv
 VERILOG_SOURCES += $(RTL_DIR)/uart_rx.sv
